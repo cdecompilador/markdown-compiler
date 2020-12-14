@@ -49,13 +49,25 @@ impl MDParser {
         let code_iter = code.lines();
         match code.lines().next() {
             Some("rust") => {
-                (CSLanguage::Rust, code_iter.skip(1).collect())
+                (CSLanguage::Rust, code_iter.skip(1).map(|s| {
+                    let mut s = s.to_owned();
+                    s.push('\n');
+                    s
+                }).collect())
             }
             Some("c++") | Some("cpp") => {
-                (CSLanguage::Cpp, code_iter.skip(1).collect())
+                (CSLanguage::Cpp, code_iter.skip(1).map(|s| {
+                    let mut s = s.to_owned();
+                    s.push('\n');
+                    s
+                }).collect())
             }
             Some("c") => {
-                (CSLanguage::C, code_iter.skip(1).collect())
+                (CSLanguage::C, code_iter.skip(1).map(|s| {
+                    let mut s = s.to_owned();
+                    s.push('\n');
+                    s
+                }).collect())
             }
             _ => (CSLanguage::Uknown, code)
         }
@@ -143,15 +155,23 @@ impl Iterator for MDParser {
                     todo!()
                 }
                 Token::ReversedQuote => {
-                    if let Some(t) = self.source.peek() {
-                        match t.clone() {
+                    self.source.next();
+                    if let Some(t2) = self.source.peek() {
+                        match t2.clone() {
                             Token::ReversedQuote => {
+                                self.source.next();
                                 if let Some(Token::ReversedQuote) = self.source.peek() {
                                     self.source.next();
                                     if let Some(Token::Code(c)) = self.source.peek() {
                                         let (lang, c) = MDParser::extract_lang(c.clone());
                                         // TODO: Create different syntax highlighters
-                                        MDValue::CodeSnippet((lang, c))
+                                        self.source.next();
+                                        match (self.source.next(), self.source.next(), self.source.next()) {
+                                            (Some(Token::ReversedQuote), Some(Token::ReversedQuote), Some(Token::ReversedQuote)) => {
+                                                MDValue::CodeSnippet((lang, c))
+                                            }
+                                            (a,b,c) => panic!("Expected 3 ReversedQuotes after Code, got {:?} {:?} {:?}", a, b, c),
+                                        }
                                     } else {
                                         panic!("Expected Code after 3 ReversedQuotes");
                                     }
@@ -161,9 +181,15 @@ impl Iterator for MDParser {
                             }
                             Token::Code(c) => {
                                 // TODO: Skip code and end_quote (checking if there is)
-                                MDValue::CodeSnippet((CSLanguage::Uknown, c.clone()))
+                                self.source.next();
+                                if let Some(Token::ReversedQuote) = self.source.peek() {
+                                    self.source.next();
+                                    MDValue::CodeSnippet((CSLanguage::Uknown, c.clone()))
+                                } else {
+                                    panic!("Expected closing ReversedQuote for Code but got");
+                                }
                             }
-                            _ => panic!("Expected another ReversedQuoute or Code"),
+                            _ => panic!("Expected another ReversedQuoute or Code but got {:?}", t2),
                         }
                     } else {
                         continue;
@@ -184,7 +210,8 @@ mod tests {
 
     #[test]
     fn parser_tests() {
-        let tokenizer = Tokenizer::new("# Hello World\n## Hello World\n");
+        // Header tests
+        let tokenizer = Tokenizer::new("# Hello World\n## Hello World\n### Hello World\n#### Hello World\n");
         let mut parser = MDParser::new(tokenizer); 
         let mut values = vec![];
         while let Some(v) = parser.next() {
@@ -193,6 +220,24 @@ mod tests {
         assert_eq!(vec![
                    MDValue::BigHeader("Hello World".to_owned()), MDValue::NewLine,
                    MDValue::MediumHeader("Hello World".to_owned()), MDValue::NewLine,
+                   MDValue::SmallHeader("Hello World".to_owned()), MDValue::NewLine,
+                   MDValue::VerySmallHeader("Hello World".to_owned()), MDValue::NewLine,
+        ], values);
+
+        // Code snippets tests
+        let tokenizer = Tokenizer::new("\n`cargo build --release`
+```rust\nfn main() {\n}\n```\n");
+        let mut parser = MDParser::new(tokenizer); 
+        let mut values = vec![];
+        while let Some(v) = parser.next() {
+            values.push(v);
+        }
+        assert_eq!(vec![
+            MDValue::NewLine,
+            MDValue::CodeSnippet((CSLanguage::Uknown,"cargo build --release".to_owned())), 
+            MDValue::NewLine,
+            MDValue::CodeSnippet((CSLanguage::Rust, "fn main() {\n}\n".to_string())),
+            MDValue::NewLine,
         ], values);
     }
 }
