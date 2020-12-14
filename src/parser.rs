@@ -5,7 +5,7 @@ use super::tokenizer::{Token, Tokenizer};
 /// Supported languages by the compiler, needed for the future adding of syntax
 /// highlight of code snippets
 #[allow(dead_code)]
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub enum CSLanguage {
     /// Uknown language or not provided language so no syntax highlighting
     Uknown,
@@ -45,6 +45,21 @@ impl MDParser {
             source: tokens.peekable(),
         }
     }
+    fn extract_lang(code: String) -> (CSLanguage, String) {
+        let code_iter = code.lines();
+        match code.lines().next() {
+            Some("rust") => {
+                (CSLanguage::Rust, code_iter.skip(1).collect())
+            }
+            Some("c++") | Some("cpp") => {
+                (CSLanguage::Cpp, code_iter.skip(1).collect())
+            }
+            Some("c") => {
+                (CSLanguage::C, code_iter.skip(1).collect())
+            }
+            _ => (CSLanguage::Uknown, code)
+        }
+    }
 }
 
 /// The main usage of the MDParser, as Iterator
@@ -80,9 +95,10 @@ impl Iterator for MDParser {
                                         Token::Pad => {
                                             self.source.next();
                                             if let Some(t4) = self.source.peek() {
-                                                match t4 {
+                                                match t4.clone() {
                                                     // 3 PAD AND STRING FOUND
                                                     Token::String(s) => {
+                                                        self.source.next();
                                                         MDValue::SmallHeader(s.clone())
                                                     }
                                                     // 4 PAD FOUND
@@ -90,7 +106,8 @@ impl Iterator for MDParser {
                                                         self.source.next();
                                                         if let Some(t5) = self.source.peek() {
                                                             // 4 PAD AND STRING
-                                                            if let Token::String(s) = t5 {
+                                                            if let Token::String(s) = t5.clone() {
+                                                                self.source.next();
                                                                 MDValue::VerySmallHeader(s.clone())
                                                             } else {
                                                                 panic!("Expected string after 4 pads");
@@ -117,17 +134,30 @@ impl Iterator for MDParser {
                         continue;
                     }
                 }
-                Token::NewLine => MDValue::NewLine,
+                Token::NewLine => {
+                    self.source.next();
+                    MDValue::NewLine
+                },
                 Token::Asterisk => {
                     // Implement the bold text
                     todo!()
                 }
                 Token::ReversedQuote => {
-                    self.source.next();
                     if let Some(t) = self.source.peek() {
-                        match t {
+                        match t.clone() {
                             Token::ReversedQuote => {
-                                todo!();
+                                if let Some(Token::ReversedQuote) = self.source.peek() {
+                                    self.source.next();
+                                    if let Some(Token::Code(c)) = self.source.peek() {
+                                        let (lang, c) = MDParser::extract_lang(c.clone());
+                                        // TODO: Create different syntax highlighters
+                                        MDValue::CodeSnippet((lang, c))
+                                    } else {
+                                        panic!("Expected Code after 3 ReversedQuotes");
+                                    }
+                                } else {
+                                    panic!("Expected another ReversedQuote after ReversedQuote");
+                                }
                             }
                             Token::Code(c) => {
                                 // TODO: Skip code and end_quote (checking if there is)
@@ -144,6 +174,8 @@ impl Iterator for MDParser {
         }
         None
     }
+
+
 }
 
 #[cfg(test)]
@@ -152,13 +184,15 @@ mod tests {
 
     #[test]
     fn parser_tests() {
-        let tokenizer = Tokenizer::new("# Hello World");
+        let tokenizer = Tokenizer::new("# Hello World\n## Hello World\n");
         let mut parser = MDParser::new(tokenizer); 
         let mut values = vec![];
         while let Some(v) = parser.next() {
             values.push(v);
         }
-
-        assert_eq!(vec![MDValue::BigHeader("Hello World".to_owned())], values);
+        assert_eq!(vec![
+                   MDValue::BigHeader("Hello World".to_owned()), MDValue::NewLine,
+                   MDValue::MediumHeader("Hello World".to_owned()), MDValue::NewLine,
+        ], values);
     }
 }

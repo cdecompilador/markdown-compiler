@@ -258,7 +258,7 @@ mod tests {
 
         // Test for code
         let code_text =
-"```rust
+"\n# Hello World```rust
 fn main() {\n\tlet a = vec![];\n\treturn a;\n}
 ```";
         tokenizer.reset(code_text);
@@ -268,6 +268,7 @@ fn main() {\n\tlet a = vec![];\n\treturn a;\n}
         }
         assert_eq!(tokens, 
             vec![
+                Token::NewLine, Token::Pad, Token::String("Hello World".to_owned()),
                 Token::ReversedQuote, Token::ReversedQuote, Token::ReversedQuote,
                 Token::Code("rust\nfn main() {\n\tlet a = vec![];\n\treturn a;\n}\n".to_owned()),
                 Token::ReversedQuote, Token::ReversedQuote, Token::ReversedQuote,
