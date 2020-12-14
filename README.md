@@ -14,7 +14,7 @@ Blog Website: [cdecompilador blog](https://cdecompilador.github.io/cdecompilador
 use std::io::{self, Read};
 
 /// Usage `cargo r --example demo < ./examples/input.txt`
-fn main() -> io::Result<()>{
+fn main() -> io::Result<()> {
     // Read the markdown from the stdin
     let mut source = String::new(); 
     std::io::stdin().read_to_string(&mut source)?;
@@ -33,7 +33,6 @@ fn main() -> io::Result<()>{
 
 ✅ Parse Headers <br>
 ✅ Parse raw text <br>
-✅ Parse Code snippets <br>
 ✅ Parse Code snippets <br>
 ❌ Syntax highlighting <br>
 ❌ Parse bold and italic text <br>

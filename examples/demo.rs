@@ -2,7 +2,7 @@ use markdown_compiler::compile_markdown;
 use std::io::{self, Read};
 
 /// Usage `cargo r --example demo < ./examples/input.txt`
-fn main() -> io::Result<()>{
+fn main() -> io::Result<()> {
     // Read the markdown from the stdin
     let mut source = String::new(); 
     std::io::stdin().read_to_string(&mut source)?;
