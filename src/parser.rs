@@ -196,6 +196,10 @@ impl Iterator for MDParser {
                         continue;
                     }
                 }
+                Token::String(s) => {
+                    self.source.next();
+                    MDValue::Text(s)
+                }
                 _ => panic!("!! Unexpected, got {:?}", t),
             });
         }
