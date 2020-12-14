@@ -240,5 +240,14 @@ mod tests {
             MDValue::CodeSnippet((CSLanguage::Rust, "fn main() {\n}\n".to_string())),
             MDValue::NewLine,
         ], values);
+
+        // Nothing test
+        let tokenizer = Tokenizer::new("");
+        let mut parser = MDParser::new(tokenizer); 
+        let mut values = vec![];
+        while let Some(v) = parser.next() {
+            values.push(v);
+        }
+        assert!(values.is_empty() == true);
     }
 }

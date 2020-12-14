@@ -197,18 +197,22 @@ impl Iterator for Tokenizer {
         // If the idx == last one it returns None, if it's None it returns 
         // the first element, otherwise just `next_back`. 
         // As result its a circular iterator
-        if let Some((idx, _)) = &self.curr_token {
-            if *idx == self.tokens.len() - 1 {
-                self.curr_token = None;
-            } else {
-                self.curr_token = Some((idx+1, self.tokens[idx+1].clone()));
-            }
+        if self.tokens.is_empty() {
+            None
         } else {
-            self.curr_token = Some((0, self.tokens[0].clone()))
-        }
+            if let Some((idx, _)) = &self.curr_token {
+                if *idx == self.tokens.len() - 1 {
+                    self.curr_token = None;
+                } else {
+                    self.curr_token = Some((idx+1, self.tokens[idx+1].clone()));
+                }
+            } else {
+                self.curr_token = Some((0, self.tokens[0].clone()))
+            }
 
-        // From (idx, tok) to just tok
-        self.curr_token.clone().map(|(_, tok)| tok)
+            // From (idx, tok) to just tok
+            self.curr_token.clone().map(|(_, tok)| tok)
+        }
     }
 }
 
@@ -216,20 +220,24 @@ impl DoubleEndedIterator for Tokenizer {
     fn next_back(&mut self) -> Option<Self::Item> {
         // If the idx == 0 it returns None, if it's None it returns the last
         // element, otherwise just `next_back`. As result its a circular iterator
-        if let Some((idx, _)) = &self.curr_token {
-            if *idx == 0 {
-                self.curr_token = None;
-            } else {
-                self.curr_token = Some((idx-1, self.tokens[idx-1].clone()));
-            }
+        if self.tokens.is_empty() {
+            None
         } else {
-            let pos = self.tokens.len() - 1;
-            self.curr_token = Some((pos, self.tokens[pos].clone()))
-        }
+            if let Some((idx, _)) = &self.curr_token {
+                if *idx == 0 {
+                    self.curr_token = None;
+                } else {
+                    self.curr_token = Some((idx-1, self.tokens[idx-1].clone()));
+                }
+            } else {
+                let pos = self.tokens.len() - 1;
+                self.curr_token = Some((pos, self.tokens[pos].clone()))
+            }
 
-        // From (idx, tok) to just tok
-        self.curr_token.clone().map(|(_, tok)| tok)
-    }
+            // From (idx, tok) to just tok
+            self.curr_token.clone().map(|(_, tok)| tok)
+        }
+   }
 }
 
 #[cfg(test)]
