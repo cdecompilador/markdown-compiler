@@ -18,8 +18,9 @@ impl fmt::Display for MDValue {
             MDValue::VerySmallHeader(text) => {
                 value.push_str(&format!("<h4>{}</h4>", text));
             }
+            // Maybe use prettier library for syntax highlighting
             MDValue::CodeSnippet((lang, text)) => {
-                todo!()
+                value.push_str(&format!("<code>{}<code>", text));
             }
             MDValue::NewLine => {
                 value.push('\n');

@@ -79,6 +79,7 @@ impl Iterator for MDParser {
     type Item = MDValue;
 
     /// TODO: Now with the double ended iterator I can simplify the paradigm
+    /// TODO(2): Well i didn't used the double ended iteartor for the moment :p
     /// used here
     fn next(&mut self) -> Option<Self::Item> {
         while let Some(t) = self.source.peek() {
