@@ -1,6 +1,8 @@
 use std::iter::Peekable;
+use std::rc::Rc;
 
 use super::tokenizer::{Token, Tokenizer};
+use super::errors::ParserError;
 
 /// Supported languages by the compiler, needed for the future adding of syntax
 /// highlight of code snippets
@@ -33,16 +35,28 @@ pub enum MDValue {
 
 /// Markdown Parser Iterator that from the Tokens Iterator will yield
 /// MDValues
-pub struct MDParser {
+pub struct MDParser<'a> {
     source: Peekable<Tokenizer>,
+
+    /// The current line where we are parsing
+    line: usize,
+
+    /// The current line-width where we are parsing
+    width: usize,
+
+    /// Found errors with their corresponding line and line-width
+    errors: Vec<ParserError<'a>>,
 }
 
-impl MDParser {
+impl MDParser<'_> {
     /// Instantiate a new `MDParser` given the `Tokenizer` that contains the
     /// tokens
     pub fn new(tokens: Tokenizer) -> Self {
         MDParser {
             source: tokens.peekable(),
+            line: 0,
+            width: 0,
+            errors: Vec::new(),
         }
     }
     fn extract_lang(code: String) -> (CSLanguage, String) {
@@ -75,7 +89,7 @@ impl MDParser {
 }
 
 /// The main usage of the MDParser, as Iterator
-impl Iterator for MDParser {
+impl<'a> Iterator for MDParser<'a> {
     type Item = MDValue;
 
     /// TODO: Now with the double ended iterator I can simplify the paradigm
@@ -86,40 +100,51 @@ impl Iterator for MDParser {
             return Some(match t.clone() {
                 // 1 PAD FOUND
                 Token::Pad => {
+                    self.width += 1;
                     self.source.next();
                     if let Some(t2) = self.source.peek() {
                         match t2.clone() {
                             // PAD AND STRING FOUND
                             Token::String(s) => {
+                                // FIXME: If string had spaces before they are not
+                                // added, so its fixed by the `+ 1` but its not
+                                // bulletproof
+                                self.width += s.len() + 1;
                                 self.source.next();
                                 MDValue::BigHeader(s.clone())
                             },
                             // 2 PAD FOUND
                             Token::Pad => {
+                                self.width += 1;
                                 self.source.next();
                                 if let Some(t3) = self.source.peek() {
                                     match t3.clone() {
                                         // 2 PAD AND STRING FOUND
                                         Token::String(s) => {
+                                            self.width += s.len() + 1;
                                             self.source.next();
                                             MDValue::MediumHeader(s.clone())
                                         }
                                         // 3 PAD FOUND
                                         Token::Pad => {
+                                            self.width += 1;
                                             self.source.next();
                                             if let Some(t4) = self.source.peek() {
                                                 match t4.clone() {
                                                     // 3 PAD AND STRING FOUND
                                                     Token::String(s) => {
+                                                        self.width += s.len() + 1;
                                                         self.source.next();
                                                         MDValue::SmallHeader(s.clone())
                                                     }
                                                     // 4 PAD FOUND
                                                     Token::Pad => {
+                                                        self.width += 1;
                                                         self.source.next();
                                                         if let Some(t5) = self.source.peek() {
                                                             // 4 PAD AND STRING
                                                             if let Token::String(s) = t5.clone() {
+                                                                self.width += s.len() + 1;
                                                                 self.source.next();
                                                                 MDValue::VerySmallHeader(s.clone())
                                                             } else {
@@ -141,13 +166,20 @@ impl Iterator for MDParser {
                                     continue;
                                 }
                             }
-                            _ => panic!("Expected Pad or String after pad but got {:?}", t2),
+                            _ => {
+                                self.errors.push(
+                                    ParserError::ExpectedButGot((self.line, self.width), &["Token::Pad", "Token::String"], t2.clone())
+                                );
+                                continue;
+                            }
                         }
                     } else {
                         continue;
                     }
                 }
                 Token::NewLine => {
+                    self.line += 1;
+                    self.width = 0;
                     self.source.next();
                     MDValue::NewLine
                 },
@@ -156,19 +188,26 @@ impl Iterator for MDParser {
                     todo!()
                 }
                 Token::ReversedQuote => {
+                    self.width += 1;
                     self.source.next();
                     if let Some(t2) = self.source.peek() {
                         match t2.clone() {
                             Token::ReversedQuote => {
+                                self.width += 1;
                                 self.source.next();
                                 if let Some(Token::ReversedQuote) = self.source.peek() {
+                                    self.width += 1;
                                     self.source.next();
                                     if let Some(Token::Code(c)) = self.source.peek() {
                                         let (lang, c) = MDParser::extract_lang(c.clone());
                                         // TODO: Create different syntax highlighters
+                                        // POSSIBLE_ERROR
+                                        self.line += c.lines().count() + 2;
+                                        self.width = 0;
                                         self.source.next();
                                         match (self.source.next(), self.source.next(), self.source.next()) {
                                             (Some(Token::ReversedQuote), Some(Token::ReversedQuote), Some(Token::ReversedQuote)) => {
+                                                self.width += 3;
                                                 MDValue::CodeSnippet((lang, c))
                                             }
                                             (a,b,c) => panic!("Expected 3 ReversedQuotes after Code, got {:?} {:?} {:?}", a, b, c),
@@ -184,19 +223,23 @@ impl Iterator for MDParser {
                                 // TODO: Skip code and end_quote (checking if there is)
                                 self.source.next();
                                 if let Some(Token::ReversedQuote) = self.source.peek() {
+                                    self.width += c.len();
                                     self.source.next();
                                     MDValue::CodeSnippet((CSLanguage::Uknown, c.clone()))
                                 } else {
                                     panic!("Expected closing ReversedQuote for Code but got");
                                 }
                             }
-                            _ => panic!("Expected another ReversedQuoute or Code but got {:?}", t2),
+                            _ => panic!("Expected another ReversedQuoute or Code but got {:?}", t2
+                        
+                        ),
                         }
                     } else {
                         continue;
                     }
                 }
                 Token::String(s) => {
+                    self.width += s.len();
                     self.source.next();
                     MDValue::Text(s)
                 }

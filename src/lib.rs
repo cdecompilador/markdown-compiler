@@ -1,6 +1,7 @@
 mod parser;
 mod tokenizer;
 mod compiler;
+mod errors;
 
 /// Function that given an `source` &str compiles it from Markdown to Html
 /// `Tokenize -> Parse -> Compile`
